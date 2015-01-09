@@ -10,10 +10,12 @@ namespace Lua
 {
 	enum
 	{
+		MULTRET = -1,
 		SPECIAL_GLOB = -10002,
 		SPECIAL_ENV,
 		SPECIAL_REG,
 	};
+
 }
 
 namespace LFuncs
@@ -34,6 +36,13 @@ namespace LFuncs
 	extern void (LUA_CONV *lua_pushcclosure)(lua_State *L, lua_CFunction fn, int n);
 	extern void (LUA_CONV *lua_setfield)(lua_State *L, int index, const char *k);
 	extern void (LUA_CONV *lua_pushvalue)(lua_State *L, int index);
+	extern void (LUA_CONV *lua_settop)(lua_State *L, int index);
+	extern void (LUA_CONV *lua_rawgeti)(lua_State *L, int index, int n);
+
+	inline void lua_pop(lua_State *L, int amount)
+	{
+		lua_settop(L, lua_gettop(L) - amount);
+	}
 };
 
 class Proxy
@@ -44,6 +53,8 @@ public:
 	void CreateState(void);
 
 	void RunString(const char *stringtorun, const char *source = 0, bool run = true, size_t len = 0, int rets = 0);
+
+	void GetGamemode(void);
 
 public:
 	lua_State *L;

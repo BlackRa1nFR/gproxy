@@ -67,7 +67,7 @@
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;GPROXY_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_WINDOWS;_USRDLL;GPROXY_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
     </ClCompile>
@@ -80,14 +80,20 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="externs.cpp" />
+    <ClCompile Include="hooks.cpp" />
     <ClCompile Include="lfuncs.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="memorytools.cpp" />
     <ClCompile Include="proxy.cpp" />
+    <ClCompile Include="vthook.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="color.h" />
     <ClInclude Include="externs.h" />
+    <ClInclude Include="luaobjects.h" />
+    <ClInclude Include="memorytools.h" />
     <ClInclude Include="proxy.h" />
+    <ClInclude Include="vthook.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
