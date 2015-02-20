@@ -2,7 +2,7 @@
 #define VTHOOK_H
 
 typedef void *ptr;
-typedef void **vtable;
+typedef ptr *vtable;
 typedef unsigned short vtindex;
 
 class VTHook
@@ -13,17 +13,22 @@ public:
 	template<typename t>
 	t GetIndex(vtindex number)
 	{
-		return (t)(**(vtable *)hookedclass)[number];
+		return (t)((*(vtable *)hookedclass)[number]);
 	}
 	template<typename t>
 	t GetOldIndex(vtindex number)
 	{
-		return (t)(oldvtable)[number];
+		return (t)(oldvtable[number]);
 	}
 	template<typename t>
 	t GetNewIndex(vtindex number)
 	{
-		return (t)(newvtable)[number];
+		return (t)(newvtable[number]);
+	}
+
+	bool Hooked(void)
+	{
+		return *(vtable *)hookedclass == newvtable;
 	}
 
 	void Hook(void)

@@ -82,6 +82,7 @@
     <ClCompile Include="externs.cpp" />
     <ClCompile Include="hooks.cpp" />
     <ClCompile Include="lfuncs.cpp" />
+    <ClCompile Include="lua_extension.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="memorytools.cpp" />
     <ClCompile Include="proxy.cpp" />

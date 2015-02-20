@@ -4,7 +4,7 @@
 class Color
 {
 public:
-	Color(int _r = 255, int _g = 255, int _b = 255, int _a = 255)
+	inline Color(int _r = 255, int _g = 255, int _b = 255, int _a = 255)
 	{
 		r = _r;
 		g = _g;
