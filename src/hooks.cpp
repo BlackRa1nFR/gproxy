@@ -18,41 +18,43 @@ extern Proxy proxy;
 
 extern CLuaGamemode **g_pGamemode_ptr; 
 #define g_pGamemode (*g_pGamemode_ptr)
-VirtualReplacer<CLuaInterface> cl_luainterface_hooker;
-VirtualReplacer<GarrysMod::Lua::ILuaShared> luashared_hooker;
+static VirtualReplacer<CLuaInterface> cl_luainterface_hooker;
+static VirtualReplacer<GarrysMod::Lua::ILuaShared> luashared_hooker;
+static int createluainterface_index, referencepush_index, runstringex_index, createmetatabletype_index, callinternal_index, callfunctionprotected_index;
+using namespace LFuncs;
+using namespace GarrysMod::Lua::Type;
 
 static int LUA_CONV HookCall(lua_State *L) {
+	/* stub */
+	/*
 	int amt = LFuncs::lua_gettop(L);
-	LFuncs::lua_rawgeti(L, GarrysMod::Lua::INDEX_REGISTRY, g_pGamemode->hookcall.reference);
+	lua_rawgeti(L, GarrysMod::Lua::INDEX_REGISTRY, g_pGamemode->hookcall.reference);
 
 	for (int i = 1; i <= amt; i++)
-		LFuncs::lua_pushvalue(L, i);
-	LFuncs::lua_call(L, amt, -1);
+		lua_pushvalue(L, i);
+	lua_call(L, amt, -1);
 
 	// do proxy state afterwards
 
-	LFuncs::lua_pushlstring(proxy, "hook", 4);
-	LFuncs::lua_gettable(proxy, GarrysMod::Lua::INDEX_GLOBAL);
-	LFuncs::lua_pushlstring(proxy, "Run", 3);
-	LFuncs::lua_gettable(proxy, -2);
+	lua_pushlstring(proxy, "hook", 4);
+	lua_gettable(proxy, GarrysMod::Lua::INDEX_GLOBAL);
+	lua_pushlstring(proxy, "Run", 3);
+	lua_gettable(proxy, -2);
 
 	for (int i = 1; i <= amt; i++)
 		if (i != 2)
-			if (LFuncs::lua_pushto(L, proxy, i))
-				LFuncs::lua_pushnil(proxy);
+			if (lua_pushto(L, proxy, i))
+				lua_pushnil(proxy);
 
-	LFuncs::lua_call(proxy, amt - 1, 0);
+	lua_call(proxy, amt - 1, 0);
 
-	LFuncs::lua_pop(proxy, 1); // hook
+	lua_pop(proxy, 1); // hook
 
-	return LFuncs::lua_gettop(L) - amt;
+	return lua_gettop(L) - amt; */
+	return 0;
 }
 class __HOOKS__;
 __HOOKS__ *hooks;
-static int createluainterface_index, referencepush_index, runstringex_index, createmetatabletype_index;
-
-using namespace LFuncs;
-using namespace GarrysMod::Lua::Type;
 
 static void table_merge(lua_State *L, int merge_into, int merge_from) {
 	if (merge_into < 0 && merge_into > -10000)
@@ -92,6 +94,64 @@ public:
 
 		cl_luainterface_hooker.Call<void>(referencepush_index, ref);
 	}
+	virtual void CallInternal(int iArgs, int iResults) {
+		CLuaInterface *_int = (CLuaInterface *)this;
+		lua_State *L = _int->GetState();
+		lua_CFunction fn = lua_tocfunction(L, -iArgs - 1);
+		bool call_in_proxy = false;
+		if (fn == HookCall) {
+			lua_rawgeti(L, GarrysMod::Lua::INDEX_REGISTRY, g_pGamemode->hookcall.reference);
+			lua_replace(L, lua_gettop(L) - iArgs - 1);
+
+			lua_pushlstring(proxy, "hook", 4);
+			lua_gettable(proxy, GarrysMod::Lua::INDEX_GLOBAL);
+			lua_pushlstring(proxy, "Run", 3);
+			lua_gettable(proxy, -2);
+
+			for (int i = -iArgs; i < 0; i++)
+				if (i != -iArgs + 1)
+					if (lua_pushto(L, proxy, i))
+						lua_pushnil(proxy);
+
+			call_in_proxy = true;
+		}
+		cl_luainterface_hooker.Call<void>(callinternal_index, iArgs, iResults);
+		if (call_in_proxy) {
+			lua_call(proxy, iArgs - 1, 0);
+
+			lua_pop(proxy, 1); // hook
+		}
+	}
+	virtual bool CallFunctionProtected(int iArgs, int iRets, bool something) {
+		CLuaInterface *_int = (CLuaInterface *)this;
+		lua_State *L = _int->GetState();
+		lua_CFunction fn = lua_tocfunction(L, -iArgs - 1);
+		bool call_in_proxy = false;
+		if (fn == HookCall) {
+			lua_rawgeti(L, GarrysMod::Lua::INDEX_REGISTRY, g_pGamemode->hookcall.reference);
+			lua_replace(L, lua_gettop(L) - iArgs - 1);
+
+			lua_pushlstring(proxy, "hook", 4);
+			lua_gettable(proxy, GarrysMod::Lua::INDEX_GLOBAL);
+			lua_pushlstring(proxy, "Run", 3);
+			lua_gettable(proxy, -2);
+
+			for (int i = -iArgs; i < 0; i++)
+				if (i != -iArgs + 1)
+					if (lua_pushto(L, proxy, i))
+						lua_pushnil(proxy);
+
+			call_in_proxy = true;
+		}
+		bool ret = cl_luainterface_hooker.Call<bool>(callfunctionprotected_index, iArgs, iRets, something);
+		if (call_in_proxy) {
+			lua_call(proxy, iArgs - 1, 0);
+
+			lua_pop(proxy, 1); // hook
+		}
+		return ret;
+	}
+
 	virtual bool RunStringEx(const char *filename, const char *path, const char *stringToRun, bool run, bool printErrors, bool dontPushErrors, bool noReturns) {
 		cl_luainterface_hooker.Unhook(runstringex_index);
 
@@ -132,11 +192,15 @@ public:
 			referencepush_index = GetVirtualIndex(cl_luainterface_base, &CLuaInterface::ReferencePush);
 			runstringex_index = GetVirtualIndex(ret, &CLuaInterface::RunStringEx);
 			createmetatabletype_index = GetVirtualIndex(cl_luainterface_base, &CLuaInterface::CreateMetaTableType);
+			callinternal_index = GetVirtualIndex(ret, &CLuaInterface::CallInternal);
+			callfunctionprotected_index = GetVirtualIndex(ret, &CLuaInterface::CallFunctionProtected);
 
 			new (&cl_luainterface_hooker) VirtualReplacer<CLuaInterface>(ret);
 			cl_luainterface_hooker.Hook(referencepush_index, GetVirtualAddress(hooks, &__HOOKS__::ReferencePush));
 			cl_luainterface_hooker.Hook(runstringex_index, GetVirtualAddress(hooks, &__HOOKS__::RunStringEx));
 			cl_luainterface_hooker.Hook(createmetatabletype_index, GetVirtualAddress(hooks, &__HOOKS__::CreateMetaTableType));
+			cl_luainterface_hooker.Hook(callinternal_index, GetVirtualAddress(hooks, &__HOOKS__::CallInternal));
+			cl_luainterface_hooker.Hook(callfunctionprotected_index, GetVirtualAddress(hooks, &__HOOKS__::CallFunctionProtected));
 		}
 		return ret;
 	}
