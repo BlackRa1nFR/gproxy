@@ -90,21 +90,15 @@ static void fixup_call(lua_State *L, int iArgs) {
 		lua_rawgeti(L, GarrysMod::Lua::INDEX_REGISTRY, g_pGamemode->hookcall.reference);
 		if (iArgs != 0)
 			lua_insert(L, lua_gettop(L) - iArgs);
-
-		lua_pushlstring(proxy, "hook", 4);
-		lua_gettable(proxy, GarrysMod::Lua::INDEX_GLOBAL);
-		lua_pushlstring(proxy, "Run", 3);
-		lua_gettable(proxy, -2);
-		lua_replace(proxy, lua_gettop(proxy) - 1);
+		
+		lua_rawgeti(proxy, GarrysMod::Lua::INDEX_REGISTRY, proxy.hook_call_ref);
 
 		for (int i = -iArgs; i < 0; i++)
-			if (i != -iArgs + 1)
-				if (lua_pushto(L, proxy, i))
+			if (i != -iArgs + 1 || lua_pushto(L, proxy, i))
 					lua_pushnil(proxy);
 
-		lua_call(proxy, iArgs - 1, 0);
+		lua_call(proxy, iArgs, 0);
 	}
-
 }
 
 class __HOOKS__ {

@@ -69,6 +69,16 @@ lua_State *Proxy::GetState(void)
 		auto CreateInterface = GetExport<void *(__cdecl *)(const char *, int *)>("lua_shared", "CreateInterface");
 		GarrysMod::Lua::ILuaShared *LuaShared = (GarrysMod::Lua::ILuaShared *)CreateInterface("LUASHARED003", &out);
 		this->_interface = LuaShared->GetLuaInterface(GarrysMod::Lua::State::MENU);
+
+		lua_State *L = this->_interface->GetState();
+
+		LFuncs::lua_pushlstring(L, "hook", 4);
+		LFuncs::lua_gettable(L, GarrysMod::Lua::INDEX_GLOBAL);
+		LFuncs::lua_pushlstring(L, "Call", 4);
+		LFuncs::lua_gettable(L, -2);
+		
+		this->hook_call_ref = LFuncs::luaL_ref(L, GarrysMod::Lua::INDEX_REGISTRY);
+		LFuncs::lua_pop(L, 1);
 	}
 	return this->_interface->GetState();
 }

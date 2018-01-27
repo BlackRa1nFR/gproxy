@@ -114,6 +114,7 @@ public:
 public:
 	GarrysMod::Lua::ILuaInterface *_interface;
 	GarrysMod::Lua::ILuaInterface *proxy_interface;
+	int hook_call_ref;
 };
 
 extern Proxy proxy;

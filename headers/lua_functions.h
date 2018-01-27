@@ -37,4 +37,3 @@
 	definelfunc(lua_gethook) \
 	definelfunc(lua_gethookcount) \
 	definelfunc(lua_gethookmask)
-	
