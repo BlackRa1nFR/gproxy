@@ -25,32 +25,6 @@ using namespace LFuncs;
 using namespace GarrysMod::Lua::Type;
 
 static int LUA_CONV HookCall(lua_State *L) {
-	/* stub */
-	/*
-	int amt = LFuncs::lua_gettop(L);
-	lua_rawgeti(L, GarrysMod::Lua::INDEX_REGISTRY, g_pGamemode->hookcall.reference);
-
-	for (int i = 1; i <= amt; i++)
-		lua_pushvalue(L, i);
-	lua_call(L, amt, -1);
-
-	// do proxy state afterwards
-
-	lua_pushlstring(proxy, "hook", 4);
-	lua_gettable(proxy, GarrysMod::Lua::INDEX_GLOBAL);
-	lua_pushlstring(proxy, "Run", 3);
-	lua_gettable(proxy, -2);
-
-	for (int i = 1; i <= amt; i++)
-		if (i != 2)
-			if (lua_pushto(L, proxy, i))
-				lua_pushnil(proxy);
-
-	lua_call(proxy, amt - 1, 0);
-
-	lua_pop(proxy, 1); // hook
-
-	return lua_gettop(L) - amt; */
 	return 0;
 }
 class __HOOKS__;
@@ -94,7 +68,7 @@ static void fixup_call(lua_State *L, int iArgs) {
 		lua_rawgeti(proxy, GarrysMod::Lua::INDEX_REGISTRY, proxy.hook_call_ref);
 
 		for (int i = -iArgs; i < 0; i++)
-			if (i != -iArgs + 1 || lua_pushto(L, proxy, i))
+			if (i == -iArgs + 1 || lua_pushto(L, proxy, i))
 					lua_pushnil(proxy);
 
 		lua_call(proxy, iArgs, 0);
@@ -144,9 +118,26 @@ public:
 
 		lua_pushlstring(proxy, "cl_r", 4);
 		lua_gettable(proxy, GarrysMod::Lua::INDEX_GLOBAL);
-		lua_pushvalue(proxy, GarrysMod::Lua::INDEX_REGISTRY);
-		table_merge(proxy, -1, -2);
-		lua_pop(proxy, 2);
+
+		lua_pushnil(proxy);
+		while (lua_next(proxy, -2)) {
+			if (lua_type(proxy, -2) != STRING) {
+				lua_pop(proxy, 1);
+				continue;
+			}
+			lua_pushvalue(proxy, -2);
+			lua_gettable(proxy, GarrysMod::Lua::INDEX_REGISTRY);
+			if (lua_type(proxy, -1) == TABLE) {
+				table_merge(proxy, -1, -2);
+			} else {
+				lua_pushvalue(proxy, -3);
+				lua_pushvalue(proxy, -3);
+				lua_settable(proxy, GarrysMod::Lua::INDEX_REGISTRY);
+			}
+			lua_pop(proxy, 2);
+		}
+
+		lua_pop(proxy, 1);
 
 		return cl_luainterface_hooker.Call<bool>(runstringex_index, filename, path, stringToRun, run, printErrors, dontPushErrors, noReturns);
 	}

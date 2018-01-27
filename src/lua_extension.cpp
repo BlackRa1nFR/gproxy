@@ -33,7 +33,7 @@ static int (LUA_CONV ProxyFunction)(lua_State *from) {
 	return amt;
 }
 
-int LFuncs::lua_pushto(lua_State *from, lua_State *to, int stack)
+int LFuncs::lua_pushto(lua_State *from, lua_State *to, int stack, bool first)
 {
 	if (stack < 0 && stack > -10000) {
 		stack = lua_gettop(from) + stack + 1;
@@ -41,18 +41,18 @@ int LFuncs::lua_pushto(lua_State *from, lua_State *to, int stack)
 	switch (LFuncs::lua_type(from, stack)) {
 	case NIL: 
 		lua_pushnil(to);
-		return 0;
+		break;
 	case NUMBER: 
 		lua_pushnumber(to, lua_tonumber(from, stack));
-		return 0;
+		break;
 	case BOOL:
 		lua_pushboolean(to, lua_toboolean(from, stack));
-		return 0;
+		break;
 	case STRING: {
 		size_t slen;
 		const char *str = lua_tolstring(from, stack, &slen);
 		lua_pushlstring(to, str, slen);
-		return 0;
+		break;
 	}
 	case USERDATA: {
 		auto ud_from = (GarrysMod::Lua::UserData *)lua_touserdata(from, stack);
@@ -68,8 +68,18 @@ int LFuncs::lua_pushto(lua_State *from, lua_State *to, int stack)
 		if (proxy == to) {
 			if (MetaTableTypes.find(ud->type) != MetaTableTypes.end()) {
 				std::string type = MetaTableTypes.at(ud->type);
+				/* todo: better entity method */
+				if (ud->type == ENTITY) {
+					lua_getmetatable(from, stack);
+					lua_pushlstring(from, "MetaName", 8);
+					lua_rawget(from, -2);
+					if (lua_type(from, -1) == STRING) {
+						type = lua_tolstring(from, -1, 0);
+					}
+					lua_pop(from, 2);
+				}
 				lua_pushlstring(to, type.c_str(), type.length());
-				lua_gettable(to, GarrysMod::Lua::INDEX_REGISTRY);
+				lua_rawget(to, GarrysMod::Lua::INDEX_REGISTRY);
 				if (lua_type(to, -1) == TABLE) {
 					lua_pushlstring(to, "__gc", 4);
 					lua_pushnil(to);
@@ -78,7 +88,9 @@ int LFuncs::lua_pushto(lua_State *from, lua_State *to, int stack)
 				lua_setmetatable(to, -2);
 			}
 		}
-		return 0;
+		else if (proxy == from && size > 8)
+			ud->data = ud_from->data;
+		break;
 	}
 	case TABLE:
 		if (to == proxy) {
@@ -103,7 +115,7 @@ int LFuncs::lua_pushto(lua_State *from, lua_State *to, int stack)
 			lua_gettable(to, -2);
 			if (lua_type(to, -1) == TABLE) {
 				lua_remove(to, -2);
-				return 0;
+				break;
 			}
 			
 			// else 
@@ -125,10 +137,10 @@ int LFuncs::lua_pushto(lua_State *from, lua_State *to, int stack)
 			lua_pushnil(from);
 
 			while (lua_next(from, stack) != 0) {
-				if (lua_pushto(from, to, -2)) {
+				if (lua_pushto(from, to, -2, false)) {
 					goto end;
 				}
-				if (lua_pushto(from, to, -1)) {
+				if (lua_pushto(from, to, -1, false)) {
 					lua_pop(to, 1);
 					goto end;
 				}
@@ -136,10 +148,10 @@ int LFuncs::lua_pushto(lua_State *from, lua_State *to, int stack)
 			end:
 				lua_pop(from, 1);
 			}
-			return 0;
+			break;
 		}
 		lua_newtable(to);
-		return 0;
+		break;
 		
 	case FUNCTION: {
 		auto fn = lua_tocfunction(from, stack);
@@ -148,9 +160,15 @@ int LFuncs::lua_pushto(lua_State *from, lua_State *to, int stack)
 		lua_pushcclosure(to, fn, 0);
 		if (proxy == to)
 			lua_pushcclosure(to, ProxyFunction, 1);
-		return 0;
+		break;
 	}
 	default: 
 		return 1;
 	}
+	if (first && to == proxy) {
+		lua_pushlstring(to, "_POINTERS", 9);
+		lua_pushnil(to);
+		lua_settable(to, GarrysMod::Lua::INDEX_REGISTRY);
+	}
+	return 0;
 }
