@@ -83,6 +83,30 @@ static void table_merge(lua_State *L, int merge_into, int merge_from) {
 	}
 }
 
+static void fixup_call(lua_State *L, int iArgs) {
+	lua_CFunction fn = lua_tocfunction(L, -iArgs - 1);
+	if (fn == HookCall) {
+		lua_remove(L, lua_gettop(L) - iArgs);
+		lua_rawgeti(L, GarrysMod::Lua::INDEX_REGISTRY, g_pGamemode->hookcall.reference);
+		if (iArgs != 0)
+			lua_insert(L, lua_gettop(L) - iArgs);
+
+		lua_pushlstring(proxy, "hook", 4);
+		lua_gettable(proxy, GarrysMod::Lua::INDEX_GLOBAL);
+		lua_pushlstring(proxy, "Run", 3);
+		lua_gettable(proxy, -2);
+		lua_replace(proxy, lua_gettop(proxy) - 1);
+
+		for (int i = -iArgs; i < 0; i++)
+			if (i != -iArgs + 1)
+				if (lua_pushto(L, proxy, i))
+					lua_pushnil(proxy);
+
+		lua_call(proxy, iArgs - 1, 0);
+	}
+
+}
+
 class __HOOKS__ {
 public:
 	virtual void ReferencePush(unsigned int ref) {
@@ -96,60 +120,13 @@ public:
 	}
 	virtual void CallInternal(int iArgs, int iResults) {
 		CLuaInterface *_int = (CLuaInterface *)this;
-		lua_State *L = _int->GetState();
-		lua_CFunction fn = lua_tocfunction(L, -iArgs - 1);
-		bool call_in_proxy = false;
-		if (fn == HookCall) {
-			lua_rawgeti(L, GarrysMod::Lua::INDEX_REGISTRY, g_pGamemode->hookcall.reference);
-			lua_replace(L, lua_gettop(L) - iArgs - 1);
-
-			lua_pushlstring(proxy, "hook", 4);
-			lua_gettable(proxy, GarrysMod::Lua::INDEX_GLOBAL);
-			lua_pushlstring(proxy, "Run", 3);
-			lua_gettable(proxy, -2);
-
-			for (int i = -iArgs; i < 0; i++)
-				if (i != -iArgs + 1)
-					if (lua_pushto(L, proxy, i))
-						lua_pushnil(proxy);
-
-			call_in_proxy = true;
-		}
+		fixup_call(_int->GetState(), iArgs);
 		cl_luainterface_hooker.Call<void>(callinternal_index, iArgs, iResults);
-		if (call_in_proxy) {
-			lua_call(proxy, iArgs - 1, 0);
-
-			lua_pop(proxy, 1); // hook
-		}
 	}
 	virtual bool CallFunctionProtected(int iArgs, int iRets, bool something) {
 		CLuaInterface *_int = (CLuaInterface *)this;
-		lua_State *L = _int->GetState();
-		lua_CFunction fn = lua_tocfunction(L, -iArgs - 1);
-		bool call_in_proxy = false;
-		if (fn == HookCall) {
-			lua_rawgeti(L, GarrysMod::Lua::INDEX_REGISTRY, g_pGamemode->hookcall.reference);
-			lua_replace(L, lua_gettop(L) - iArgs - 1);
-
-			lua_pushlstring(proxy, "hook", 4);
-			lua_gettable(proxy, GarrysMod::Lua::INDEX_GLOBAL);
-			lua_pushlstring(proxy, "Run", 3);
-			lua_gettable(proxy, -2);
-
-			for (int i = -iArgs; i < 0; i++)
-				if (i != -iArgs + 1)
-					if (lua_pushto(L, proxy, i))
-						lua_pushnil(proxy);
-
-			call_in_proxy = true;
-		}
-		bool ret = cl_luainterface_hooker.Call<bool>(callfunctionprotected_index, iArgs, iRets, something);
-		if (call_in_proxy) {
-			lua_call(proxy, iArgs - 1, 0);
-
-			lua_pop(proxy, 1); // hook
-		}
-		return ret;
+		fixup_call(_int->GetState(), iArgs);
+		return cl_luainterface_hooker.Call<bool>(callfunctionprotected_index, iArgs, iRets, something);
 	}
 
 	virtual bool RunStringEx(const char *filename, const char *path, const char *stringToRun, bool run, bool printErrors, bool dontPushErrors, bool noReturns) {
