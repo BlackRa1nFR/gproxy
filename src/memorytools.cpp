@@ -26,3 +26,10 @@ void *sigscan(const char *sig, void *_base)
 	}
 	return 0;
 }
+
+void write_over_protected(void *addr, void *data, size_t length) {
+	DWORD oldprotect, garbage;
+	VirtualProtect(addr, length, PAGE_READWRITE, &oldprotect);
+	memcpy(addr, data, length);
+	VirtualProtect(addr, length, oldprotect, &garbage);
+}

@@ -5,6 +5,7 @@
 #include "userdata.h"
 
 using namespace GarrysMod::Lua::Type;
+using namespace LFuncs;
 
 static int (LUA_CONV ProxyFunction)(lua_State *from) {
 	lua_State *to = proxy.proxy_interface->GetState();
@@ -33,6 +34,19 @@ static int (LUA_CONV ProxyFunction)(lua_State *from) {
 	return amt;
 }
 
+#include "luajit_internals.h"
+
+struct ProxyUserData {
+	GarrysMod::Lua::UserData ud;
+	GCudata *proxy_data;
+};
+
+int (LUA_CONV __gc_override)(lua_State *L) {
+	auto ud = (ProxyUserData *)lua_touserdata(L, 1);
+	ud->proxy_data->unused2 = 0;
+	return 0;
+}
+
 int LFuncs::lua_pushto(lua_State *from, lua_State *to, int stack, bool first)
 {
 	if (stack < 0 && stack > -10000) {
@@ -56,40 +70,42 @@ int LFuncs::lua_pushto(lua_State *from, lua_State *to, int stack, bool first)
 	}
 	case USERDATA: {
 		auto ud_from = (GarrysMod::Lua::UserData *)lua_touserdata(from, stack);
-		size_t size = *(size_t *)(((std::uintptr_t)ud_from) - 12);
-		auto ud = (GarrysMod::Lua::UserData *)lua_newuserdata(to, size);
-		if (size > 8) {
-			ud->data = &ud[1];
-			memcpy(ud->data, ud_from->data, size - 8);
-		} else
-			ud->data = ud_from->data;
-
-		ud->type = ud_from->type;
 		if (proxy == to) {
-			if (MetaTableTypes.find(ud->type) != MetaTableTypes.end()) {
-				std::string type = MetaTableTypes.at(ud->type);
-				/* todo: better entity method */
-				if (ud->type == ENTITY) {
-					lua_getmetatable(from, stack);
-					lua_pushlstring(from, "MetaName", 8);
-					lua_rawget(from, -2);
-					if (lua_type(from, -1) == STRING) {
-						type = lua_tolstring(from, -1, 0);
-					}
-					lua_pop(from, 2);
+			GCudata *udgc = &((GCudata *)ud_from)[-1];
+			auto ud = (ProxyUserData *)lua_newuserdata(to, sizeof(ProxyUserData));
+			ud->proxy_data = udgc;
+			ud->ud.data = ud_from->data;
+			ud->ud.type = ud_from->type;
+
+			udgc->unused2 = 0xc9;
+
+			/* update metatable */
+
+			std::string type = MetaTableTypes.at(ud->ud.type);
+			/* todo: better entity method */
+			if (ud->ud.type == ENTITY) {
+				lua_getmetatable(from, stack);
+				lua_pushlstring(from, "MetaName", 8);
+				lua_rawget(from, -2);
+				if (lua_type(from, -1) == STRING) {
+					type = lua_tolstring(from, -1, 0);
 				}
-				lua_pushlstring(to, type.c_str(), type.length());
-				lua_rawget(to, GarrysMod::Lua::INDEX_REGISTRY);
-				if (lua_type(to, -1) == TABLE) {
-					lua_pushlstring(to, "__gc", 4);
-					lua_pushnil(to);
-					lua_settable(to, -3);
-				}
-				lua_setmetatable(to, -2);
+				lua_pop(from, 2);
 			}
+			lua_pushlstring(to, type.c_str(), type.length());
+			lua_rawget(to, GarrysMod::Lua::INDEX_REGISTRY);
+			if (lua_type(to, -1) == TABLE) {
+				lua_pushlstring(to, "__gc", 4);
+				lua_pushcclosure(to, __gc_override, 0);
+				lua_settable(to, -3);
+			}
+			lua_setmetatable(to, -2);
+		} else if (proxy == from) {
+			/* we need to push the userdata's GCobj pointer to the stack directly, here it goes! */
+			TValue *top = to->top;
+			lua_pushnil(to);
+			setudataV(to, top, *(GCudata **)&ud_from[1]);
 		}
-		else if (proxy == from && size > 8)
-			ud->data = ud_from->data;
 		break;
 	}
 	case TABLE:

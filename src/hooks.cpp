@@ -5,6 +5,8 @@
 #include "proxy.h"
 #include "color.h"
 #include "exports.h"
+#include "memorytools.h"
+#include "stdlib.h"
 
 #define LUASHARED_CREATELUAINTERFACE 4
 #define LUAINTERFACE_REFERENCEPUSH 37
@@ -72,6 +74,26 @@ static void fixup_call(lua_State *L, int iArgs) {
 					lua_pushnil(proxy);
 
 		lua_call(proxy, iArgs, 0);
+	}
+}
+
+static void *gc_sweep_proceed; // (addr + 6)
+static void *gc_sweep_override; // (addr + 13)
+
+static void __declspec(naked) gc_sweep_preventgc() {
+	__asm {
+		mov al, [esi + 7]
+		cmp al, 0c9h
+		je sweep_override
+
+	sweep_proceed:
+		mov cl, [esi + 4]
+		movzx eax, cl
+		mov ecx, gc_sweep_proceed
+		jmp ecx
+	sweep_override:
+		mov eax, gc_sweep_override
+		jmp eax
 	}
 }
 
@@ -180,4 +202,15 @@ void dohooks(void) {
 
 	luashared_hooker.Hook(createluainterface_index, GetVirtualAddress(hooks, &__HOOKS__::CreateLuaInterface));
 
+	// shitty hook :(
+	// detours gc_sweep to stop gc from happening 
+
+	void *gc_sweep_addr = sigscan("\x8a\x4e\x04\x0f\xb6\xc1\x83\xf0\x03", getmodulebaselib("lua_shared"));
+	unsigned char data[5];
+	data[0] = 0xe9;
+	*(uint32_t *)&data[1] = uint32_t(gc_sweep_preventgc) - uint32_t(gc_sweep_addr) - 5;
+	gc_sweep_override = (void *)(13 + uint32_t(gc_sweep_addr));
+	gc_sweep_proceed = (void *)(6 + uint32_t(gc_sweep_addr));
+
+	write_over_protected(gc_sweep_addr, data, 5);
 }

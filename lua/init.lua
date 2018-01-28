@@ -1,4 +1,4 @@
-hook.Add("HUDPaint", "test_esp", function()
+hook.Remove("HUDPaint", "test_esp", function()
     for k,v in pairs(player.GetAll()) do 
         if (v:IsDormant()) then
             continue
